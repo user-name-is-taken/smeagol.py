@@ -1,0 +1,88 @@
+import base64
+import hashlib
+from Crypto import Random
+from Crypto.Cipher import AES
+from Crypto.PublicKey import RSA
+
+class AESCipher (object):
+    """thanks to stack overflow"""
+    def __init__(self,key):
+        bs=16
+        self._unpad= lambda s:s[:-ord(s[len(s)-1:])]
+        self._pad= lambda s: s+(bs- len(s)% bs) * chr(bs-len(s)%bs)
+        self.key= self._pad(key)
+    def encrypt (self, raw):
+        raw=self._pad(raw)
+        iv=Random.new().read( AES.block_size)
+        cipher=AES.new(self.key, AES.MODE_CBC, iv)
+        return base64.b64encode(iv + cipher.encrypt(raw))
+    def decrypt (self, enc):
+        enc=base64.b64decode(enc)
+        iv= enc[:16]
+        cipher= AES.new(self.key, AES.MODE_CBC, iv)
+        return self._unpad(cipher.decrypt( enc[16:]))
+"""maybe make a class for these functions called order game"""
+def verify_input(state):
+    s=None
+    while s==None:
+        try:
+            s=input(state)
+            if s==str(s):
+                s=str.lower(s)
+        except:
+            print "enter a valid input"
+    return s
+            
+def make_q_dict():
+    """makes the q-a series.
+user friendly"""
+    a=None
+    q=verify_input('enter a question to ask')
+    d={a:[q]}
+    stop=False
+    k=1
+    while stop==False:
+        a=verify_input('enter the answer')
+        if verify_input("enter 1 to stop")==1:
+            stop=True
+            q=None
+        else:
+            q=verify_input('enter a question to ask')
+            obj=AESCipher(a)
+            q=obj.encrypt(q)
+        ha=hash(a)+k #need better salt. k is known to guesser.    
+        if (ha)in d:
+            d[ha].append(q)
+        else:
+            d[ha]=[q]
+        k+=1
+    return d
+    #add this to a txt file
+
+def play_game(d):
+    """plays the game, returns questions, answers.
+user friendly."""
+    qs=[d[None][0]]
+    answers=list()
+    stop = False
+    k=1
+    while stop==False:
+        a=verify_input(qs[-1])
+        ha=hash(a)+k #need better salt
+        if ha in d:
+            if d[ha][0]==None:
+                answers.append(a)
+                stop=True
+            else:
+                obj=AESCipher(a)
+                q=obj.decrypt(d[ha][0])
+                answers.append(a)
+                qs.append(q)
+                del(d[ha][0])
+                if len(d[ha])<=0:
+                    del(d[ha])
+                k+=1
+        if verify_input('enter 1 to stop')==1:
+            stop=True
+    del(d)        
+    return qs, answers
